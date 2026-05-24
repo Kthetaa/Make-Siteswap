@@ -118,6 +118,21 @@ input, button {
 const width = window.innerWidth;
 const height = window.innerHeight;
 
+if (width < height){//高さの方がでかいときの調整
+    Object.assign(info.style, {
+        top: `${height - 200}px`,
+        left: "0px",
+        width: `${width}px`,
+        height: "200px"
+    });
+    Object.assign(count.style, {
+        top: `${height - 240}px`,
+        left: "0px",
+        width: `${width}px`,
+        height: "20px"
+    });
+}
+
 const svg = d3.select("svg")
     .attr("width", width)
     .attr("height", height);
