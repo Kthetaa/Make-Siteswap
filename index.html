@@ -261,10 +261,13 @@ function addNode() {
 
     const name = input.value;
 
-    if (name === "") return;
-    for (const node of nodes){
-        if (name == node.label) return;
-    }
+    //文字列をフィルター
+    if (
+        !name ||
+        /[^01]/.test(name) ||
+        !name.endsWith("1") ||
+        nodes.some(node => node.label === name)
+    ) return;
 
     // 新頂点
     const newNode = {
