@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #111;
+}
+
+line {
+    stroke: white;
+}
+
+circle {
+    fill: skyblue;
+}
+
+text {
+    user-select: none;
+    pointer-events: none;
+
+#ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+}
+
+input, button {
+    font-size: 16px;
+    padding: 5px;
+}
+
+}
+
+#info {
+    position: absolute;
+
+    top: 40px;
+    right: 0px;
+
+    color: white;
+
+    font-size: 20px;
+    font-family: monospace;
+
+    background: rgba(0,0,0,0.5);
+
+    padding: 10px;
+
+    border-radius: 10px;
+
+    width: 100px;
+    height: 600px;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+#count {
+    position: absolute;
+
+    top: 0px;
+    right: 0px;
+
+    color: white;
+
+    font-size: 20px;
+    font-family: monospace;
+
+    background: rgba(0,0,0,0.5);
+
+    padding: 10px;
+
+    border-radius: 10px;
+
+    width: 100px;
+    height: 20px;
+    overflow-x: auto;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+
+    <input id="nodeName" placeholder="頂点名">
+
+    <button id="addNodeButton">
+        頂点追加
+    </button>
+
+</div>
+
+<svg width="100vw" height="100vh"></svg>
+
+//ss一覧
+<div id="info">
+    4
+</div>
+
+//カウント
+<div id="count">
+    <span style="color:cyan">0</span>/<span style="color:orange">0</span>
+</div>
+
+<script>
+
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+const svg = d3.select("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+const g = svg.append("g");
+
+svg.call(
+
+    d3.zoom()
+
+        .scaleExtent([0.2, 5])
+
+        .on("zoom", (event) => {
+
+            g.attr("transform", event.transform);
+        })
+);
+
+g.append("defs")
+    .append("marker")
+    .attr("id", "arrow")
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 5)
+    .attr("refY", 0)
+    .attr("markerWidth", 8)
+    .attr("markerHeight", 8)
+    .attr("orient", "auto")
+    .append("path")
+    .attr("d", "M0,-5L10,0L0,5")
+    .attr("fill", "white");
+
+//頂点
+let nodes = [
+    {id: 0, label: "1111"},
+];
+
+//辺
+let links = [
+    
+];
+
+//辺の描画
+link = g.selectAll("path")
+    .data(links)
+    .enter()
+    .append("path")
+    .attr("fill", "none")
+    .attr("stroke", "white")
+    .attr("marker-end", "url(#arrow)");
+
+//辺のテキスト
+let linkText = g.selectAll(".linkText")
+    .data(links)
+    .enter()
+    .append("text")
+    .attr("class", "linkText")
+    .text(d => d.label)
+    .attr("fill", "orange")
+    .attr("text-anchor", "middle");
+
+//頂点の描画
+let node = g.selectAll("circle")
+    .data(nodes)
+    .enter()
+    .append("circle")
+    .attr("r", 20);
+
+//頂点のテキスト
+let nodeText = g.selectAll(".nodeText")
+    .data(nodes)
+    .enter()
+    .append("text")
+    .attr("class", "nodeText")
+    .text(d => d.label)
+    .attr("fill", "white")
+    .attr("text-anchor", "middle")
+    .attr("dy", 5);
+
+//サイトスワップ
+let siteswaps = [];
+
+//カウント
+let counts = [0,0];
+
+//シミュレーション
+const simulation = d3.forceSimulation(nodes)
+
+    //辺がバネ
+    .force("link",
+        d3.forceLink(links)
+            .id(d => d.id)
+            .distance(220)
+    )
+
+    //頂点が反発
+    .force("charge",
+        d3.forceManyBody()
+            .strength(-1000)
+    )
+
+    //中央に寄せる
+    .force("center",
+        d3.forceCenter(width / 2, height / 2)
+    )
+
+    //毎フレーム更新
+    .on("tick", ticked);
+
+document//入力ボックス
+    .getElementById("addNodeButton")
+    .addEventListener("click", addNode);
+
+document
+    .getElementById("nodeName")
+    .addEventListener("keydown", event => {
+
+        if (event.key === "Enter") {
+            addNode();
+        }
+    });
+
+function addNode() {
+
+    const input =
+        document.getElementById("nodeName");
+
+    const name = input.value;
+
+    if (name === "") return;
+    for (const node of nodes){
+        if (name == node.label) return;
+    }
+
+    // 新頂点
+    const newNode = {
+        id: nodes.length,
+        label: name
+    };
+
+    nodes.push(newNode);
+
+    // ノードへ接続
+    for(var hoge = 0; hoge < nodes.length - 1; hoge++){
+        for(var ss = 0; ss < Math.max(nodes[hoge].label.length, newNode.label.length) + 1; ss++){
+            //既存から新規へ
+            if(throwBall(nodes[hoge].label, ss) == newNode.label){
+                links.push({
+                    source: hoge,
+                    target: newNode.id,
+                    label: String(ss)
+                });
+            }
+
+            //新規から既存へ
+            if(throwBall(newNode.label, ss) == nodes[hoge].label){
+                links.push({
+                    source: newNode.id,
+                    target: hoge,
+                    label: String(ss)
+                });
+            }
+        }
+    }
+
+    updateGraph();
+
+    input.value = "";
+    input.focus();
+
+
+    siteswaps = [...siteswaps, newSiteswaps()];
+    
+    info.innerHTML ="4" +
+    siteswaps.map((x, i) => `
+        <div style="color:${i % 2 ? 'orange' : 'cyan'}">
+            ${x.join("<br>")}
+        </div>
+    `).join("");
+
+    count.style.background = (nodes.length - 1) % 2 ? "rgba(0,255,255,0.2)" : "rgba(255,165,0,0.2)";
+    count.innerHTML = `<span style="color:cyan">${counts[0]}</span>/<span style="color:orange">${counts[1]}</span>`;
+}
+
+function throwBall(state, n){//stateからサイトスワップnを投げたときのstate
+    while(state.length < n + 1){
+        state = state + "0";
+    }
+    let returnValue = ""
+    if(state.charAt(0) == "0"){
+        if(n == 0){
+            returnValue = state.substring(1);
+        }
+        else{
+            returnValue = "";
+        }
+    }
+    else if(state.charAt(n) == "0"){
+        returnValue = state.substring(1,n) + "1" + state.substring(n+1,state.length + 1);
+    }
+    return returnValue;
+}
+
+function newSiteswaps(){//新たに追加された頂点を含むサイトスワップ
+    const lastNode = nodes[nodes.length - 1];
+
+    const newSS = [];
+
+    function dfs(start, current, visited, ss = "") {//再帰的に関数にぶち込む
+
+        visited.add(current);
+
+        for (const link of links) {
+
+            if (link.source.id !== current) continue;
+
+            const next = link.target.id;
+
+            // 閉路発見
+            if (next === start) {
+                //ssは変えられない
+                let arrangedSS = ss + link.label;
+                let offset = 0;
+                //順番を整える
+                if (visited.has(0)){//基底を通る場合(ファウンテンから直接入れる)
+                    for (const n of visited){
+                        if (n == 0){break;}
+                        offset++;
+                    }
+                    arrangedSS = arrangedSS.slice(offset) + arrangedSS.slice(0,offset);
+                }
+                else{//基底を通らない場合
+                    const sss = [];
+                    for (var hoge = 0; hoge < arrangedSS.length; hoge++){
+                        sss.push(arrangedSS.slice(hoge) + arrangedSS.slice(0,hoge));
+                    }
+                    arrangedSS = "* " + String(Math.max(...sss)) + " *";
+                }
+                newSS.push(arrangedSS);
+            }
+
+            // 未訪問なら続行
+            else if (!visited.has(next)) {
+                ss = ss + link.label;
+                dfs(start, next, new Set(visited), ss);
+                ss = ss.slice(0,-1);
+            }
+        }
+    }
+
+    dfs(lastNode.id, lastNode.id, new Set());
+    
+    counts[nodes.length % 2] += newSS.length;
+
+    return newSS;
+}
+
+function updateGraph() {
+
+    // 辺更新
+    link = link.data(links);
+
+    link = link.enter()
+          .append("path")
+          .merge(link)
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("marker-end", "url(#arrow)")
+    
+    //辺文字更新
+    linkText = linkText.data(links);
+
+    linkText = linkText.enter()
+        .append("text")
+        .attr("class", "linkText")
+        .attr("fill", "orange")
+        .attr("text-anchor", "middle")
+        .attr("dy", -5)
+        .text(d => d.label)
+        .merge(linkText);
+
+    // 頂点更新
+    node = node.data(nodes);
+
+    node = node.enter()
+        .append("circle")
+        .attr("r", 20)
+        .call(
+            d3.drag()
+                .on("start", dragStarted)
+                .on("drag", dragged)
+                .on("end", dragEnded)
+        )
+        .merge(node);
+
+    // 頂点文字更新
+    nodeText = nodeText.data(nodes);
+
+    nodeText = nodeText.enter()
+        .append("text")
+        .text(d => d.label)
+        .attr("fill", "white")
+        .attr("text-anchor", "middle")
+        .attr("dy", 5)
+        .merge(nodeText);
+
+    // シミュレーション更新
+    simulation.nodes(nodes);
+
+    simulation.force("link")
+        .links(links);
+
+    simulation.alpha(1).restart();
+
+    //レイヤーを上に
+    linkText.raise();
+    node.raise();
+    nodeText.raise();
+}
+
+//アニメーション更新
+function ticked() {
+
+    link.attr("d", d => {
+
+        let x1 = d.source.x;
+        let y1 = d.source.y;
+
+        let x2 = d.target.x;
+        let y2 = d.target.y;
+
+        // 逆向き辺があるか
+        const reverse = links.some(l =>
+            l !== d &&
+            l.source.id === d.target.id &&
+            l.target.id === d.source.id
+        );
+
+        // 曲げ量
+        const curve = reverse ? 40 : 0;
+
+        // 中点
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+
+        // 法線ベクトル
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+
+        const len = Math.sqrt(dx * dx + dy * dy);
+
+        const nx = -dy / len;
+        const ny = dx / len;
+
+        // 制御点
+        const cx = mx + nx * curve;
+        const cy = my + ny * curve;
+
+        //終点の調整
+        const r = 23;
+        x2 = x2 - dx / len * r;
+        y2 = y2 - dy / len * r;
+
+
+        return `
+            M ${x1} ${y1}
+            Q ${cx} ${cy}
+            ${x2} ${y2}
+        `;
+    });
+
+    linkText
+    .attr("x", d => {
+
+        const x1 = d.source.x;
+        const y1 = d.source.y;
+
+        const x2 = d.target.x;
+        const y2 = d.target.y;
+
+        // 相互リンク判定
+        const reverse = links.some(l =>
+            l !== d &&
+            l.source.id === d.target.id &&
+            l.target.id === d.source.id
+        );
+
+        const curve = reverse ? 40 : 0;
+
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+
+        const len = Math.sqrt(dx * dx + dy * dy);
+
+        const nx = -dy / len;
+        const ny = dx / len;
+
+        return (x1 + x2)/2 + nx * curve * 0.5;
+    })
+
+    .attr("y", d => {
+
+        const x1 = d.source.x;
+        const y1 = d.source.y;
+
+        const x2 = d.target.x;
+        const y2 = d.target.y;
+
+        const reverse = links.some(l =>
+            l !== d &&
+            l.source.id === d.target.id &&
+            l.target.id === d.source.id
+        );
+
+        const curve = reverse ? 40 : 0;
+
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+
+        const len = Math.sqrt(dx * dx + dy * dy);
+
+        const nx = -dy / len;
+        const ny = dx / len;
+
+        return (y1 + y2)/2 + ny * curve * 0.5;
+    });
+    
+    node
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y);
+    
+    nodeText
+        .attr("x", d => d.x)
+        .attr("y", d => d.y);
+}
+
+node.call(
+
+    d3.drag()
+
+        .on("start", dragStarted)
+        .on("drag", dragged)
+        .on("end", dragEnded)
+);
+
+function dragStarted(event, d) {
+
+    // シミュレーション再加熱
+    if (!event.active) {
+        simulation.alphaTarget(0.3).restart();
+    }
+
+    // 固定
+    d.fx = d.x;
+    d.fy = d.y;
+}
+
+function dragged(event, d) {
+
+    // マウス位置へ移動
+    d.fx = event.x;
+    d.fy = event.y;
+}
+
+function dragEnded(event, d) {
+
+    // 冷却
+    if (!event.active) {
+        simulation.alphaTarget(0);
+    }
+
+    // 固定解除
+    d.fx = null;
+    d.fy = null;
+}
+
+</script>
+
+</body>
+</html>
